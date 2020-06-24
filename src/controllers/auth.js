@@ -1,4 +1,4 @@
-const User = require("../models/User");
+const User = require("../models/user");
 
 const register = async (req, res, next) => {
     try {
@@ -20,13 +20,31 @@ const register = async (req, res, next) => {
             password,
             role: "customer",
         });
-        newUser.password = null;
         return res
             .status(200)
-            .json({ token: newUser.generateJWT(), user: newUser });
+            .json({ token: newUser.generateJWT(), user: newUser.clean() });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
 };
 
-module.exports = { register };
+const login = async (req, res, next) => {
+    try {
+        const { email, password } = req.body;
+
+        const user = await User.findOne({ email });
+
+        if (!user || !user.comparePassword(password))
+            return res
+                .status(401)
+                .json({ message: "Invalid email or password" });
+
+        return res
+            .status(200)
+            .json({ token: user.generateJWT(), user: user.clean() });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { register, login };

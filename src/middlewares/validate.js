@@ -1,7 +1,7 @@
 const { validationResult, body } = require("express-validator");
 
 const registerValidation = [
-    body("name").trim().not().isEmpty().withMessage("Please enter name"),
+    body("name").trim().not().isEmpty().withMessage("Name cannot be empty"),
     body("email")
         .trim()
         .isEmail()
@@ -14,6 +14,11 @@ const registerValidation = [
         .withMessage("Must be at least 7 chars long"),
 ];
 
+const loginValidation = [
+    body("email").trim().isEmail().withMessage("Enter a valid email address"),
+    body("password").not().isEmpty().withMessage("Password cannot be empty"),
+];
+
 const validate = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -24,4 +29,4 @@ const validate = (req, res, next) => {
     next();
 };
 
-module.exports = { registerValidation, validate };
+module.exports = { registerValidation, validate, loginValidation };

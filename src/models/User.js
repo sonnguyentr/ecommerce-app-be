@@ -9,11 +9,10 @@ const UserSchema = new mongoose.Schema({
         required: "Your email is required",
         trim: true,
     },
-    name: { type: String, required: "Your username is required" },
+    name: { type: String, required: "Your name is required" },
     password: {
         type: String,
         required: "Your password is required",
-        max: 100,
     },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date },
@@ -44,8 +43,6 @@ UserSchema.pre("update", function (next) {
 
 UserSchema.methods.generateJWT = function () {
     const today = new Date();
-    const expirationDate = new Date(today);
-    expirationDate.setDate(today.getDate() + 60);
 
     let payload = {
         id: this._id,
@@ -59,6 +56,15 @@ UserSchema.methods.generateJWT = function () {
 
 UserSchema.methods.comparePassword = function (password) {
     return bcrypt.compareSync(password, this.password);
+};
+
+UserSchema.methods.clean = function () {
+    const obj = this.toObject();
+    const sensitive = ["password"];
+    sensitive.forEach((item) => {
+        delete obj[item];
+    });
+    return obj;
 };
 
 module.exports = mongoose.model("Users", UserSchema);
