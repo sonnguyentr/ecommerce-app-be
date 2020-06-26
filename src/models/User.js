@@ -10,6 +10,7 @@ const UserSchema = new mongoose.Schema({
         trim: true,
     },
     name: { type: String, required: "Your name is required" },
+    role: { type: String },
     password: {
         type: String,
         required: "Your password is required",
@@ -22,7 +23,6 @@ UserSchema.pre("save", function (next) {
     const user = this;
 
     if (!user.isNew) return next();
-    user.userId = user.constructor.countDocuments();
 
     bcrypt.genSalt(10, function (err, salt) {
         if (err) return next(err);
@@ -42,8 +42,6 @@ UserSchema.pre("update", function (next) {
 });
 
 UserSchema.methods.generateJWT = function () {
-    const today = new Date();
-
     let payload = {
         id: this._id,
         email: this.email,
