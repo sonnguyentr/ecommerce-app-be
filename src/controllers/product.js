@@ -37,16 +37,37 @@ const getDetail = async (req, res, next) => {
 const remove = async (req, res, next) => {
     const { _id } = req.params;
     try {
-        const foundProduct = await Product.findOne({ _id }).exec();
-        if (!foundProduct) {
+        const result = await Product.deleteOne({ _id });
+        if (!result.deletedCount) {
             return next(createError(400, "Cannot find product by id"));
         }
-        // product.isRemoved = true;
-        await foundProduct.deleteOne();
         return res.json({ message: "Deleted" });
     } catch (err) {
         next(err);
     }
 };
 
-module.exports = { add, getList, getDetail, remove };
+const edit = async (req, res, next) => {
+    const { _id } = req.params;
+    const { photos, title, price, properties, description } = req.body;
+    const newPhotos = photos.map((photo) => photo.src);
+    try {
+        let foundProduct = await Product.findById(_id).exec();
+        if (!foundProduct) {
+            return next(createError(400, "Cannot find product by id"));
+        }
+
+        foundProduct.photos = newPhotos;
+        foundProduct.title = title;
+        foundProduct.price = price;
+        foundProduct.properties = properties;
+        foundProduct.description = description;
+
+        const updated = await foundProduct.save();
+        return res.json({ message: "Updated", product: updated });
+    } catch (err) {
+        next(err);
+    }
+};
+
+module.exports = { add, getList, getDetail, remove, edit };
