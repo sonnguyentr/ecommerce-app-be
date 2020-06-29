@@ -1,7 +1,7 @@
 const createError = require("http-errors");
 const jwt = require("jsonwebtoken");
 
-const verify = async (req, res, next) => {
+const verifyJwt = async (req, res, next) => {
     const authorization = req.header("authorization");
     const token = authorization && authorization.split(" ")[1];
     if (!token)
@@ -16,4 +16,4 @@ const verify = async (req, res, next) => {
     next();
 };
 
-module.exports = { verify };
+module.exports = verifyJwt;

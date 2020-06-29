@@ -1,10 +1,16 @@
+const createError = require("http-errors");
 const Product = require("../models/Product");
 
 const add = async (req, res, next) => {
     let { photos } = req.body;
+    const { user } = req;
     photos = photos.map((photo) => photo.src);
-    const product = await Product.create({ ...req.body, photos });
-    return res.json({ product });
+    try {
+        const product = await Product.create({ ...req.body, photos });
+        return res.json({ product });
+    } catch (err) {
+        next(err);
+    }
 };
 
 const getList = async (req, res, next) => {
