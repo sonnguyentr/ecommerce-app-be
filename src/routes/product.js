@@ -10,6 +10,6 @@ const Product = require("../controllers/product");
 const router = express.Router();
 router.route("/:_id").get(Product.getDetail);
 router.route("/add-product").post(verify, Product.add);
-router.route("/").get(verify, Product.getList);
+router.route("/").get(Product.getList);
 
 module.exports = router;
