@@ -23,8 +23,30 @@ const getList = async (req, res, next) => {
 
 const getDetail = async (req, res, next) => {
     const { _id } = req.params;
-    const product = await Product.findOne({ _id }).exec();
-    return res.json({ data: product.toObject() });
+    try {
+        const product = await Product.findOne({ _id }).exec();
+        if (!product) {
+            return next(createError(400, "Cannot find product by id"));
+        }
+        return res.json({ data: product.toObject() });
+    } catch (err) {
+        next(err);
+    }
 };
 
-module.exports = { add, getList, getDetail };
+const remove = async (req, res, next) => {
+    const { _id } = req.params;
+    try {
+        const foundProduct = await Product.findOne({ _id }).exec();
+        if (!foundProduct) {
+            return next(createError(400, "Cannot find product by id"));
+        }
+        // product.isRemoved = true;
+        await foundProduct.deleteOne();
+        return res.json({ message: "Deleted" });
+    } catch (err) {
+        next(err);
+    }
+};
+
+module.exports = { add, getList, getDetail, remove };
