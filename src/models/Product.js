@@ -30,5 +30,4 @@ ProductSchema.pre("update", function (next) {
     next();
 });
 
-
 module.exports = mongoose.model("Products", ProductSchema);
