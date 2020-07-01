@@ -107,7 +107,6 @@ const getList = async (req, res, next) => {
             ],
         ]).exec();
         list = list.map((item) => {
-            console.log(item);
             const newOrderArr = item.productsDetail.map((product) => {
                 const order = item.orderedProducts.find(
                     (el) => el._id === product._id.toString()
@@ -140,4 +139,24 @@ const getList = async (req, res, next) => {
     }
 };
 
-module.exports = { create, getList };
+const cancel = async (req, res, next) => {
+    const { order_id } = req.body;
+    const { user } = req;
+    // find order
+    // check customer id
+
+    const foundOrder = await Order.findById(order_id).exec();
+    if (!foundOrder) return next(createError(400, "Can not find this order"));
+    if (foundOrder.customerId !== user._id)
+        return next(createError(400, "This order does not belong to you"));
+    if (foundOrder.status === 1)
+        return next(createError(400, "You can not cancel completed order."));
+    if (foundOrder.status === -1)
+        return next(createError(400, "This order is already cancelled."));
+
+    foundOrder.status = -1;
+    const saveOrder = await foundOrder.save();
+    return res.json({ order: saveOrder });
+};
+
+module.exports = { create, getList, cancel };
