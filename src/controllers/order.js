@@ -152,7 +152,7 @@ const cancel = async (req, res, next) => {
     if (foundOrder.status === 1)
         return next(createError(400, "You can not cancel completed order."));
     if (foundOrder.status === -1)
-        return next(createError(400, "This order is already cancelled."));
+        return next(createError(400, "This order is already canceled."));
 
     foundOrder.status = -1;
     const saveOrder = await foundOrder.save();

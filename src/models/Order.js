@@ -3,7 +3,7 @@ const { orderStatus } = require("../config/code");
 
 const OrderSchema = new mongoose.Schema({
     customerId: { type: String, required: true },
-    status: { type: Number, default: 0 }, // 0: pending, 1: completed, -1: cancelled
+    status: { type: Number, default: 0 }, // 0: pending, 1: completed, -1: canceled
     products: { type: Array, required: true }, // _id, size, quantity, price
     amount: { type: Number, required: true },
     createdAt: { type: Date, default: Date.now },
