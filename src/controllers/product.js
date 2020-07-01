@@ -15,16 +15,16 @@ const add = async (req, res, next) => {
 
 const getList = async (req, res, next) => {
     const listProducts = await Product.find(
-        {},
+        { isRemoved: { $ne: true } },
         { photos: { $slice: 1 } }
     ).exec();
     return res.json({ data: listProducts });
 };
 
 const getDetail = async (req, res, next) => {
-    const { _id } = req.params;
+    const { product_id } = req.params;
     try {
-        const product = await Product.findOne({ _id }).exec();
+        const product = await Product.findById(product_id).exec();
         if (!product) {
             return next(createError(400, "Cannot find product by id"));
         }
@@ -35,12 +35,13 @@ const getDetail = async (req, res, next) => {
 };
 
 const remove = async (req, res, next) => {
-    const { _id } = req.params;
+    const { product_id } = req.params;
     try {
-        const result = await Product.deleteOne({ _id });
-        if (!result.deletedCount) {
-            return next(createError(400, "Cannot find product by id"));
-        }
+        // const result = await Product.deleteOne({ product_id });
+        const foundProduct = await Product.findById(product_id).exec();
+        if (!foundProduct) throw createError(400, "Cannot find product by id");
+        foundProduct.isRemoved = true;
+        await foundProduct.save();
         return res.json({ message: "Deleted" });
     } catch (err) {
         next(err);
@@ -48,11 +49,11 @@ const remove = async (req, res, next) => {
 };
 
 const edit = async (req, res, next) => {
-    const { _id } = req.params;
+    const { product_id } = req.params;
     const { photos, title, price, properties, description } = req.body;
     const newPhotos = photos.map((photo) => photo.src);
     try {
-        let foundProduct = await Product.findById(_id).exec();
+        let foundProduct = await Product.findById(product_id).exec();
         if (!foundProduct) {
             return next(createError(400, "Cannot find product by id"));
         }
