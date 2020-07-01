@@ -12,6 +12,7 @@ const router = express.Router();
 router
     .route("/:_id")
     .get(Product.getDetail)
+    .put(verifyJwt, verifyRole("seller"), Product.edit)
     .delete(verifyJwt, verifyRole("seller"), Product.remove);
 router.route("/add-product").post(verifyJwt, verifyRole("seller"), Product.add);
 router.route("/").get(Product.getList);
