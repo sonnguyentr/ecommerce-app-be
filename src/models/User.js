@@ -43,7 +43,7 @@ UserSchema.pre("update", function (next) {
 
 UserSchema.methods.generateJWT = function () {
     let payload = {
-        id: this._id,
+        _id: this._id,
         email: this.email,
         role: this.role,
     };
