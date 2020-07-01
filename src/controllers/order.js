@@ -140,23 +140,43 @@ const getList = async (req, res, next) => {
 };
 
 const cancel = async (req, res, next) => {
-    const { order_id } = req.body;
-    const { user } = req;
-    // find order
-    // check customer id
+    try {
+        const { order_id } = req.body;
+        const { user } = req;
+        const foundOrder = await Order.findById(order_id).exec();
+        if (foundOrder) throw createError(400, "Can not find this order");
+        if (foundOrder.customerId !== user._id)
+            throw createError(400, "This order does not belong to you.");
+        if (foundOrder.status !== 0)
+            throw createError(400, "You can only cancel pending order.");
 
-    const foundOrder = await Order.findById(order_id).exec();
-    if (!foundOrder) return next(createError(400, "Can not find this order"));
-    if (foundOrder.customerId !== user._id)
-        return next(createError(400, "This order does not belong to you"));
-    if (foundOrder.status === 1)
-        return next(createError(400, "You can not cancel completed order."));
-    if (foundOrder.status === -1)
-        return next(createError(400, "This order is already canceled."));
-
-    foundOrder.status = -1;
-    const saveOrder = await foundOrder.save();
-    return res.json({ order: saveOrder });
+        foundOrder.status = -1;
+        const saveOrder = await foundOrder.save();
+        return res.json({ order: saveOrder });
+    } catch (err) {
+        next(err);
+    }
 };
 
-module.exports = { create, getList, cancel };
+const update = async (req, res, next) => {
+    try {
+        const { order_id } = req.params;
+        const { status } = req.body;
+
+        const foundOrder = await Order.findById(order_id).exec();
+
+        if (!foundOrder) throw createError(400, "Can not find this order");
+        foundOrder.status = status;
+        const saveOrder = await foundOrder.save();
+        return res.json({
+            order: {
+                ...saveOrder.toObject(),
+                statusText: orderStatus[saveOrder.status],
+            },
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+module.exports = { create, getList, cancel, update };
