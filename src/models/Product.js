@@ -30,4 +30,16 @@ ProductSchema.pre("update", function (next) {
     next();
 });
 
+ProductSchema.methods.checkAvailability = function ({ size, quantity }) {
+    const foundProperty = this.properties.find((prop) => prop.size === size);
+    return foundProperty && foundProperty.quantity >= quantity;
+};
+
+ProductSchema.methods.updateStock = function ({ size, quantity }) {
+    const foundProperty = this.properties.find((prop) => prop.size === size);
+    foundProperty.quantity += quantity;
+    this.markModified("properties");
+    this.save();
+};
+
 module.exports = mongoose.model("Products", ProductSchema);

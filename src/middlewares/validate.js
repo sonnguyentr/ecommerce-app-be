@@ -19,6 +19,13 @@ const loginValidation = [
     body("password").not().isEmpty().withMessage("Password cannot be empty"),
 ];
 
+const orderCreate = [
+    body("customerId").not().isEmpty().withMessage("Please enter customerID"),
+    body("products")
+        .isArray({ min: 1 })
+        .withMessage("Password cannot be empty"),
+];
+
 const validate = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -29,4 +36,4 @@ const validate = (req, res, next) => {
     next();
 };
 
-module.exports = { registerValidation, validate, loginValidation };
+module.exports = { registerValidation, validate, loginValidation, orderCreate };
