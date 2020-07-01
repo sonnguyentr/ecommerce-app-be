@@ -5,6 +5,8 @@ const app = express();
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const helmet = require("helmet");
+const errorHandler = require("./src/middlewares/errorHandler");
 
 // Setting up port
 const mongoUri = process.env.MONGO_HOST;
@@ -14,6 +16,7 @@ const routes = require("./src/routes");
 
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
+app.use(helmet());
 app.use(cors());
 
 //MONGO
@@ -39,6 +42,8 @@ app.use("/api", routes);
 app.get("/", (req, res) => {
     res.send("Hello World");
 });
+//ERROR HANDLER
+app.use(errorHandler);
 //SERVER
 app.listen(PORT, () => {
     console.log("Server listening on port " + PORT);
