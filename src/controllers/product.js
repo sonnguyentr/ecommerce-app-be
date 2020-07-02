@@ -1,5 +1,23 @@
 const createError = require("http-errors");
 const Product = require("../models/Product");
+const imgUpload = require("../helper/imgUpload");
+
+const updateProductImg = (product) => {
+    product.photos.forEach((photo, index) => {
+        imgUpload(photo)
+            .then((result) => {
+                const setObject = {};
+                setObject["photos." + index] = result.url;
+                Product.updateOne(
+                    { _id: product._id },
+                    { $set: setObject }
+                ).exec();
+            })
+            .catch((err) => {
+                console.err(err);
+            });
+    });
+};
 
 const add = async (req, res, next) => {
     let { photos } = req.body;
@@ -11,6 +29,7 @@ const add = async (req, res, next) => {
             photos,
             sellerId: user._id,
         });
+        updateProductImg(product);
         return res.json({ product });
     } catch (err) {
         next(err);
