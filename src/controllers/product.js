@@ -6,7 +6,11 @@ const add = async (req, res, next) => {
     const { user } = req;
     photos = photos.map((photo) => photo.src);
     try {
-        const product = await Product.create({ ...req.body, photos });
+        const product = await Product.create({
+            ...req.body,
+            photos,
+            sellerId: user._id,
+        });
         return res.json({ product });
     } catch (err) {
         next(err);
@@ -51,9 +55,13 @@ const getDetail = async (req, res, next) => {
 
 const remove = async (req, res, next) => {
     const { product_id } = req.params;
+    const { user } = req;
     try {
-        // const result = await Product.deleteOne({ product_id });
-        const foundProduct = await Product.findById(product_id).exec();
+        const foundProduct = await Product.findOne({
+            _id: product_id,
+            sellerId: user._id,
+        }).exec();
+
         if (!foundProduct) throw createError(400, "Cannot find product by id");
         foundProduct.isRemoved = true;
         await foundProduct.save();
@@ -64,11 +72,16 @@ const remove = async (req, res, next) => {
 };
 
 const edit = async (req, res, next) => {
+    const { user } = req;
     const { product_id } = req.params;
     const { photos, title, price, properties, description } = req.body;
     const newPhotos = photos.map((photo) => photo.src);
     try {
-        let foundProduct = await Product.findById(product_id).exec();
+        const foundProduct = await Product.findOne({
+            _id: product_id,
+            sellerId: user._id,
+        }).exec();
+
         if (!foundProduct) {
             return next(createError(400, "Cannot find product by id"));
         }
