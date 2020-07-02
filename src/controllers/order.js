@@ -5,7 +5,19 @@ const createError = require("http-errors");
 const { orderStatus } = require("../config/code");
 const { sendMail } = require("../helper/mail");
 
-const sendMailToSeller = (orderProducts, DbProducts) => {
+const sendMailBySellerId = (sellerId, title, content) => {
+    User.findById(sellerId)
+        .exec()
+        .then((result) => {
+            sendMail(result.email, title, content);
+        });
+};
+const sendMailToSellerWhenCreate = (
+    orderProducts,
+    DbProducts,
+    title,
+    headline
+) => {
     try {
         const productsGroupBySellerId = [];
         orderProducts.forEach((productOrder) => {
@@ -28,19 +40,13 @@ const sendMailToSeller = (orderProducts, DbProducts) => {
         });
         let totalAmount = 0;
         productsGroupBySellerId.forEach((seller) => {
-            let content = `
-                <p>You received an order:</p>
-            `;
+            let content = `<p>${headline}</p>`;
             seller.products.forEach((product) => {
                 content += `<p>($${product.price}) ${product.title} (${product.size}) x ${product.quantity}</p>`;
                 totalAmount += product.price * product.quantity;
             });
             content += `<p>Total: $${totalAmount}</p>`;
-            User.findById(seller.sellerId)
-                .exec()
-                .then((result) => {
-                    sendMail(result.email, "New Order!", content);
-                });
+            sendMailBySellerId(seller.sellerId, title, content);
         });
     } catch (err) {
         console.error("sendMailToSeller failed", err);
@@ -99,7 +105,12 @@ const create = async (req, res, next) => {
             `Your order: ${totalQuantity} product(s), cost: $${amount}`
         );
         // Send mail to seller
-        sendMailToSeller(orderProducts, DbProducts);
+        sendMailToSellerWhenCreate(
+            orderProducts,
+            DbProducts,
+            "New Order!",
+            "You have received an order!"
+        );
 
         return res.json({ order: newOrder });
     } catch (err) {
@@ -200,10 +211,11 @@ const cancel = async (req, res, next) => {
     try {
         const { order_id } = req.body;
         const { user } = req;
-        const foundOrder = await Order.findById(order_id).exec();
+        const foundOrder = await Order.findOne({
+            _id: order_id,
+            customerId: user._id,
+        }).exec();
         if (!foundOrder) throw createError(400, "Can not find this order");
-        if (foundOrder.customerId !== user._id)
-            throw createError(400, "This order does not belong to you.");
         if (foundOrder.status !== 0)
             throw createError(400, "You can only cancel pending order.");
 
@@ -219,6 +231,12 @@ const cancel = async (req, res, next) => {
         });
         foundOrder.status = -1;
         const saveOrder = await foundOrder.save();
+        sendMailToSellerWhenCreate(
+            foundOrder.products,
+            products,
+            "Order Canceled!",
+            "Customer canceled an order :("
+        );
         return res.json({ order: saveOrder });
     } catch (err) {
         next(err);
