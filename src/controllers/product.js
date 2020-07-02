@@ -14,11 +14,26 @@ const add = async (req, res, next) => {
 };
 
 const getList = async (req, res, next) => {
-    const listProducts = await Product.find(
-        { isRemoved: { $ne: true } },
-        { photos: { $slice: 1 } }
-    ).exec();
-    return res.json({ data: listProducts });
+    const { page = 1, limit = 20 } = req.query;
+    try {
+        const listProducts = await Product.find(
+            { isRemoved: { $ne: true } },
+            { photos: { $slice: 1 } }
+        )
+            .skip(Number((page - 1) * limit))
+            .limit(Number(limit))
+            .exec();
+        const totalProducts = await Product.countDocuments();
+        return res.json({
+            data: listProducts,
+            limit,
+            currentPage: page,
+            totalPages: Math.ceil(totalProducts / limit),
+        });
+    } catch (err) {
+        console.error(err);
+        next(err);
+    }
 };
 
 const getDetail = async (req, res, next) => {
