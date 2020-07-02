@@ -1,8 +1,51 @@
 const Order = require("../models/Order");
 const Product = require("../models/Product");
+const User = require("../models/user");
 const createError = require("http-errors");
 const { orderStatus } = require("../config/code");
 const { sendMail } = require("../helper/mail");
+
+const sendMailToSeller = (orderProducts, DbProducts) => {
+    try {
+        const productsGroupBySellerId = [];
+        orderProducts.forEach((productOrder) => {
+            const foundProduct = DbProducts.find(
+                (pro) => pro.id === productOrder._id
+            );
+            const { sellerId, title } = foundProduct;
+            const { quantity, size, price } = productOrder;
+            const foundSeller = productsGroupBySellerId.find(
+                (seller) => seller.sellerId === foundProduct.sellerId
+            );
+            if (foundSeller) {
+                foundSeller.products.push({ quantity, size, price, title });
+            } else {
+                productsGroupBySellerId.push({
+                    sellerId,
+                    products: [{ quantity, size, price, title }],
+                });
+            }
+        });
+        let totalAmount = 0;
+        productsGroupBySellerId.forEach((seller) => {
+            let content = `
+                <p>You received an order:</p>
+            `;
+            seller.products.forEach((product) => {
+                content += `<p>($${product.price}) ${product.title} (${product.size}) x ${product.quantity}</p>`;
+                totalAmount += product.price * product.quantity;
+            });
+            content += `<p>Total: $${totalAmount}</p>`;
+            User.findById(seller.sellerId)
+                .exec()
+                .then((result) => {
+                    sendMail(result.email, "New Order!", content);
+                });
+        });
+    } catch (err) {
+        console.error("sendMailToSeller failed", err);
+    }
+};
 
 const create = async (req, res, next) => {
     try {
@@ -55,6 +98,8 @@ const create = async (req, res, next) => {
             "Order Created!",
             `Your order: ${totalQuantity} product(s), cost: $${amount}`
         );
+        // Send mail to seller
+        sendMailToSeller(orderProducts, DbProducts);
 
         return res.json({ order: newOrder });
     } catch (err) {
