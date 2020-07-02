@@ -160,6 +160,7 @@ const getList = async (req, res, next) => {
                         orderedProducts: { $push: "$products" },
                     },
                 },
+                { $sort: { createdAt: -1 } },
             ],
         ]).exec();
         list = list.map((item) => {
