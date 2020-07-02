@@ -2,18 +2,19 @@ const Order = require("../models/Order");
 const Product = require("../models/Product");
 const createError = require("http-errors");
 const { orderStatus } = require("../config/code");
+const { sendMail } = require("../helper/mail");
 
 const create = async (req, res, next) => {
     try {
-        const { customerId, products: OrderProducts } = req.body;
+        const { customerId, products: orderProducts } = req.body;
         // Check availability
-        let DbProducts = OrderProducts.map((product) => {
+        let DbProducts = orderProducts.map((product) => {
             return Product.findById(product._id, "-photos").exec();
         });
         DbProducts = await Promise.all(DbProducts);
         for (let i = 0; i < DbProducts.length; i++) {
             const product = DbProducts[i];
-            const order = OrderProducts[i];
+            const order = orderProducts[i];
             if (
                 !product ||
                 !product.checkAvailability({
@@ -29,9 +30,11 @@ const create = async (req, res, next) => {
             }
         }
         let amount = 0;
+        let totalQuantity = 0;
         // update stock
         DbProducts.forEach((product, i) => {
-            const order = OrderProducts[i];
+            const order = orderProducts[i];
+            totalQuantity += order.quantity;
             amount += order.quantity * product.price;
             product.updateStock({
                 size: order.size,
@@ -41,9 +44,17 @@ const create = async (req, res, next) => {
         // Save order
         const newOrder = await Order.create({
             customerId,
-            products: OrderProducts,
+            products: orderProducts,
             amount,
         });
+
+        const { user } = req;
+        // Send mail to customer
+        sendMail(
+            user.email,
+            "Order Created!",
+            `Your order: ${totalQuantity} product(s), cost: $${amount}`
+        );
 
         return res.json({ order: newOrder });
     } catch (err) {
