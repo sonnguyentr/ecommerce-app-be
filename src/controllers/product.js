@@ -37,18 +37,36 @@ const add = async (req, res, next) => {
 };
 
 const getList = async (req, res, next) => {
-    const { page = 1, limit = 20, size = null } = req.query;
+    const {
+        page = 1,
+        limit = 20,
+        size = null,
+        inStore = null,
+        outOfStock = null,
+    } = req.query;
     try {
         const query = {
             isRemoved: { $ne: true },
         };
-        size &&
-            (query.properties = {
-                $elemMatch: {
-                    size: size.toUpperCase(),
-                    quantity: { $gt: 0 },
-                },
-            });
+
+        const $elemMatch = {};
+        // handle quantity
+        const parseInStore = inStore && inStore.toLowerCase() === "true";
+        const parseOutOfStock =
+            outOfStock && outOfStock.toLowerCase() === "true";
+
+        if (parseInStore !== parseOutOfStock) {
+            //Cùng true || cùng false ko có ý nghĩa
+            if (parseInStore) $elemMatch["quantity"] = { $gt: 0 };
+            //query instore
+            else $elemMatch["quantity"] = { $eq: 0 }; //query outofstock
+        }
+        // handle size
+        size && ($elemMatch["size"] = size.toUpperCase());
+        // Create query
+        query.properties = {
+            $elemMatch,
+        };
         const listProducts = await Product.find(query, {
             photos: { $slice: 1 },
         })
