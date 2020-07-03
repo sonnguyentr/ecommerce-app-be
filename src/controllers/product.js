@@ -37,16 +37,25 @@ const add = async (req, res, next) => {
 };
 
 const getList = async (req, res, next) => {
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, size = null } = req.query;
     try {
-        const listProducts = await Product.find(
-            { isRemoved: { $ne: true } },
-            { photos: { $slice: 1 } }
-        )
+        const query = {
+            isRemoved: { $ne: true },
+        };
+        size &&
+            (query.properties = {
+                $elemMatch: {
+                    size: size.toUpperCase(),
+                    quantity: { $gt: 0 },
+                },
+            });
+        const listProducts = await Product.find(query, {
+            photos: { $slice: 1 },
+        })
             .skip(Number((page - 1) * limit))
             .limit(Number(limit))
             .exec();
-        const totalProducts = await Product.countDocuments();
+        const totalProducts = await Product.countDocuments(query);
         return res.json({
             data: listProducts,
             limit,
