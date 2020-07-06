@@ -26,13 +26,15 @@ const updateProductImg = (product) => {
 };
 
 const add = async (req, res, next) => {
-    let { photos } = req.body;
+    const { photos, categories } = req.body;
     const { user } = req;
-    photos = photos.map((photo) => photo.src);
+    const formatedPhotos = photos.map((photo) => photo.src);
+    const formatedCategories = categories.map((cat) => cat.value);
     try {
         const product = await Product.create({
             ...req.body,
-            photos,
+            photos: formatedPhotos,
+            categories: formatedCategories,
             sellerId: user._id,
         });
         updateProductImg(product);
@@ -49,6 +51,7 @@ const getList = async (req, res, next) => {
         size = null,
         inStore = null,
         outOfStock = null,
+        categories,
     } = req.query;
     try {
         const query = {
@@ -94,6 +97,9 @@ const getList = async (req, res, next) => {
                     },
                 };
             }
+        }
+        if (categories) {
+            query.categories = categories;
         }
         const listProducts = await Product.find(query, {
             photos: { $slice: 1 },
@@ -148,8 +154,16 @@ const remove = async (req, res, next) => {
 const edit = async (req, res, next) => {
     const { user } = req;
     const { product_id } = req.params;
-    const { photos, title, price, properties, description } = req.body;
+    const {
+        photos,
+        title,
+        price,
+        properties,
+        description,
+        categories,
+    } = req.body;
     const newPhotos = photos.map((photo) => photo.src);
+    const formatedCategories = categories.map((cat) => cat.value);
     try {
         const foundProduct = await Product.findOne({
             _id: product_id,
@@ -159,7 +173,7 @@ const edit = async (req, res, next) => {
         if (!foundProduct) {
             return next(createError(400, "Cannot find product by id"));
         }
-
+        foundProduct.categories = formatedCategories;
         foundProduct.photos = newPhotos;
         foundProduct.title = title;
         foundProduct.price = price;

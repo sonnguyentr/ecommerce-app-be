@@ -21,8 +21,9 @@ const ProductSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    categories: { type: Array },
     isRemoved: { type: Boolean },
-    sellerId: {type: String, required: true},
+    sellerId: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date },
 });
