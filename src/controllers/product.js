@@ -4,18 +4,19 @@ const imgUpload = require("../helper/imgUpload");
 
 const updateProductImg = (product) => {
     product.photos.forEach((photo, index) => {
-        imgUpload(photo)
-            .then((result) => {
-                const setObject = {};
-                setObject["photos." + index] = result.url;
-                Product.updateOne(
-                    { _id: product._id },
-                    { $set: setObject }
-                ).exec();
-            })
-            .catch((err) => {
-                console.err(err);
-            });
+        if (photo && photo.includes("data:image"))
+            imgUpload(photo)
+                .then((result) => {
+                    const setObject = {};
+                    setObject["photos." + index] = result.url;
+                    Product.updateOne(
+                        { _id: product._id },
+                        { $set: setObject }
+                    ).exec();
+                })
+                .catch((err) => {
+                    console.err(err);
+                });
     });
 };
 
@@ -49,7 +50,6 @@ const getList = async (req, res, next) => {
             isRemoved: { $ne: true },
         };
 
-        const $elemMatch = {};
         // handle quantity
         const parseInStore = inStore && inStore.toLowerCase() === "true";
         const parseOutOfStock =
@@ -57,16 +57,40 @@ const getList = async (req, res, next) => {
 
         if (parseInStore !== parseOutOfStock) {
             //Cùng true || cùng false ko có ý nghĩa
-            if (parseInStore) $elemMatch["quantity"] = { $gt: 0 };
             //query instore
-            else $elemMatch["quantity"] = { $eq: 0 }; //query outofstock
+            if (parseInStore) {
+                query.properties = {
+                    $elemMatch: {
+                        quantity: { $gt: 0 },
+                    },
+                };
+            } else {
+                query.properties = {
+                    $not: {
+                        $elemMatch: {
+                            quantity: { $gt: 0 },
+                        },
+                    },
+                };
+            }
         }
         // handle size
-        size && ($elemMatch["size"] = size.toUpperCase());
-        // Create query
-        query.properties = {
-            $elemMatch,
-        };
+        if (size) {
+            if (query.properties) {
+                query.properties.$elemMatch
+                    ? (query.properties.$elemMatch["size"] = size.toUpperCase())
+                    : (query.properties["$elemMatch"] = {
+                          size: size.toUpperCase(),
+                      });
+            } else {
+                query.properties = {
+                    $elemMatch: {
+                        size: size.toUpperCase(),
+                    },
+                };
+            }
+        }
+        console.log(query);
         const listProducts = await Product.find(query, {
             photos: { $slice: 1 },
         })
@@ -76,8 +100,8 @@ const getList = async (req, res, next) => {
         const totalProducts = await Product.countDocuments(query);
         return res.json({
             data: listProducts,
-            limit,
-            currentPage: page,
+            limit: Number(limit),
+            currentPage: Number(page),
             totalPages: Math.ceil(totalProducts / limit),
         });
     } catch (err) {
@@ -139,6 +163,7 @@ const edit = async (req, res, next) => {
         foundProduct.description = description;
 
         const updated = await foundProduct.save();
+        updateProductImg(foundProduct);
         return res.json({ message: "Updated", product: updated });
     } catch (err) {
         next(err);
