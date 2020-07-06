@@ -2,13 +2,18 @@ const createError = require("http-errors");
 const Product = require("../models/Product");
 const imgUpload = require("../helper/imgUpload");
 
+const creatImgLink = (link) => {
+    const imgTransformation = "/w_736,h_1074,c_pad,b_white";
+    return link.slice(0, 50) + imgTransformation + link.slice(50);
+};
+
 const updateProductImg = (product) => {
     product.photos.forEach((photo, index) => {
         if (photo && photo.includes("data:image"))
             imgUpload(photo)
                 .then((result) => {
                     const setObject = {};
-                    setObject["photos." + index] = result.url;
+                    setObject["photos." + index] = creatImgLink(result.url);
                     Product.updateOne(
                         { _id: product._id },
                         { $set: setObject }
@@ -90,7 +95,6 @@ const getList = async (req, res, next) => {
                 };
             }
         }
-        console.log(query);
         const listProducts = await Product.find(query, {
             photos: { $slice: 1 },
         })
