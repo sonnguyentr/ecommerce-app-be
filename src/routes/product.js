@@ -10,7 +10,7 @@ const Product = require("../controllers/product");
 
 const router = express.Router();
 router
-    .route("/:_id")
+    .route("/:product_id")
     .get(Product.getDetail)
     .put(verifyJwt, verifyRole("seller"), Product.edit)
     .delete(verifyJwt, verifyRole("seller"), Product.remove);

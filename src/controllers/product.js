@@ -1,12 +1,35 @@
 const createError = require("http-errors");
 const Product = require("../models/Product");
+const imgUpload = require("../helper/imgUpload");
+
+const updateProductImg = (product) => {
+    product.photos.forEach((photo, index) => {
+        imgUpload(photo)
+            .then((result) => {
+                const setObject = {};
+                setObject["photos." + index] = result.url;
+                Product.updateOne(
+                    { _id: product._id },
+                    { $set: setObject }
+                ).exec();
+            })
+            .catch((err) => {
+                console.err(err);
+            });
+    });
+};
 
 const add = async (req, res, next) => {
     let { photos } = req.body;
     const { user } = req;
     photos = photos.map((photo) => photo.src);
     try {
-        const product = await Product.create({ ...req.body, photos });
+        const product = await Product.create({
+            ...req.body,
+            photos,
+            sellerId: user._id,
+        });
+        updateProductImg(product);
         return res.json({ product });
     } catch (err) {
         next(err);
@@ -14,17 +37,59 @@ const add = async (req, res, next) => {
 };
 
 const getList = async (req, res, next) => {
-    const listProducts = await Product.find(
-        {},
-        { photos: { $slice: 1 } }
-    ).exec();
-    return res.json({ data: listProducts });
+    const {
+        page = 1,
+        limit = 20,
+        size = null,
+        inStore = null,
+        outOfStock = null,
+    } = req.query;
+    try {
+        const query = {
+            isRemoved: { $ne: true },
+        };
+
+        const $elemMatch = {};
+        // handle quantity
+        const parseInStore = inStore && inStore.toLowerCase() === "true";
+        const parseOutOfStock =
+            outOfStock && outOfStock.toLowerCase() === "true";
+
+        if (parseInStore !== parseOutOfStock) {
+            //Cùng true || cùng false ko có ý nghĩa
+            if (parseInStore) $elemMatch["quantity"] = { $gt: 0 };
+            //query instore
+            else $elemMatch["quantity"] = { $eq: 0 }; //query outofstock
+        }
+        // handle size
+        size && ($elemMatch["size"] = size.toUpperCase());
+        // Create query
+        query.properties = {
+            $elemMatch,
+        };
+        const listProducts = await Product.find(query, {
+            photos: { $slice: 1 },
+        })
+            .skip(Number((page - 1) * limit))
+            .limit(Number(limit))
+            .exec();
+        const totalProducts = await Product.countDocuments(query);
+        return res.json({
+            data: listProducts,
+            limit,
+            currentPage: page,
+            totalPages: Math.ceil(totalProducts / limit),
+        });
+    } catch (err) {
+        console.error(err);
+        next(err);
+    }
 };
 
 const getDetail = async (req, res, next) => {
-    const { _id } = req.params;
+    const { product_id } = req.params;
     try {
-        const product = await Product.findOne({ _id }).exec();
+        const product = await Product.findById(product_id).exec();
         if (!product) {
             return next(createError(400, "Cannot find product by id"));
         }
@@ -35,12 +100,17 @@ const getDetail = async (req, res, next) => {
 };
 
 const remove = async (req, res, next) => {
-    const { _id } = req.params;
+    const { product_id } = req.params;
+    const { user } = req;
     try {
-        const result = await Product.deleteOne({ _id });
-        if (!result.deletedCount) {
-            return next(createError(400, "Cannot find product by id"));
-        }
+        const foundProduct = await Product.findOne({
+            _id: product_id,
+            sellerId: user._id,
+        }).exec();
+
+        if (!foundProduct) throw createError(400, "Cannot find product by id");
+        foundProduct.isRemoved = true;
+        await foundProduct.save();
         return res.json({ message: "Deleted" });
     } catch (err) {
         next(err);
@@ -48,11 +118,16 @@ const remove = async (req, res, next) => {
 };
 
 const edit = async (req, res, next) => {
-    const { _id } = req.params;
+    const { user } = req;
+    const { product_id } = req.params;
     const { photos, title, price, properties, description } = req.body;
     const newPhotos = photos.map((photo) => photo.src);
     try {
-        let foundProduct = await Product.findById(_id).exec();
+        const foundProduct = await Product.findOne({
+            _id: product_id,
+            sellerId: user._id,
+        }).exec();
+
         if (!foundProduct) {
             return next(createError(400, "Cannot find product by id"));
         }

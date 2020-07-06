@@ -1,19 +1,69 @@
 const Order = require("../models/Order");
 const Product = require("../models/Product");
+const User = require("../models/user");
 const createError = require("http-errors");
 const { orderStatus } = require("../config/code");
+const { sendMail } = require("../helper/mail");
+
+const sendMailBySellerId = (sellerId, title, content) => {
+    User.findById(sellerId)
+        .exec()
+        .then((result) => {
+            sendMail(result.email, title, content);
+        });
+};
+const sendMailToSellerWhenCreate = (
+    orderProducts,
+    DbProducts,
+    title,
+    headline
+) => {
+    try {
+        const productsGroupBySellerId = [];
+        orderProducts.forEach((productOrder) => {
+            const foundProduct = DbProducts.find(
+                (pro) => pro.id === productOrder._id
+            );
+            const { sellerId, title } = foundProduct;
+            const { quantity, size, price } = productOrder;
+            const foundSeller = productsGroupBySellerId.find(
+                (seller) => seller.sellerId === foundProduct.sellerId
+            );
+            if (foundSeller) {
+                foundSeller.products.push({ quantity, size, price, title });
+            } else {
+                productsGroupBySellerId.push({
+                    sellerId,
+                    products: [{ quantity, size, price, title }],
+                });
+            }
+        });
+        let totalAmount = 0;
+        productsGroupBySellerId.forEach((seller) => {
+            let content = `<p>${headline}</p>`;
+            seller.products.forEach((product) => {
+                content += `<p>($${product.price}) ${product.title} (${product.size}) x ${product.quantity}</p>`;
+                totalAmount += product.price * product.quantity;
+            });
+            content += `<p>Total: $${totalAmount}</p>`;
+            sendMailBySellerId(seller.sellerId, title, content);
+        });
+    } catch (err) {
+        console.error("sendMailToSeller failed", err);
+    }
+};
 
 const create = async (req, res, next) => {
     try {
-        const { customerId, products: OrderProducts } = req.body;
+        const { customerId, products: orderProducts } = req.body;
         // Check availability
-        let DbProducts = OrderProducts.map((product) => {
+        let DbProducts = orderProducts.map((product) => {
             return Product.findById(product._id, "-photos").exec();
         });
         DbProducts = await Promise.all(DbProducts);
         for (let i = 0; i < DbProducts.length; i++) {
             const product = DbProducts[i];
-            const order = OrderProducts[i];
+            const order = orderProducts[i];
             if (
                 !product ||
                 !product.checkAvailability({
@@ -29,9 +79,11 @@ const create = async (req, res, next) => {
             }
         }
         let amount = 0;
+        let totalQuantity = 0;
         // update stock
         DbProducts.forEach((product, i) => {
-            const order = OrderProducts[i];
+            const order = orderProducts[i];
+            totalQuantity += order.quantity;
             amount += order.quantity * product.price;
             product.updateStock({
                 size: order.size,
@@ -41,9 +93,24 @@ const create = async (req, res, next) => {
         // Save order
         const newOrder = await Order.create({
             customerId,
-            products: OrderProducts,
+            products: orderProducts,
             amount,
         });
+
+        const { user } = req;
+        // Send mail to customer
+        sendMail(
+            user.email,
+            "Order Created!",
+            `Your order: ${totalQuantity} product(s), cost: $${amount}`
+        );
+        // Send mail to seller
+        sendMailToSellerWhenCreate(
+            orderProducts,
+            DbProducts,
+            "New Order!",
+            "You have received an order!"
+        );
 
         return res.json({ order: newOrder });
     } catch (err) {
@@ -104,6 +171,7 @@ const getList = async (req, res, next) => {
                         orderedProducts: { $push: "$products" },
                     },
                 },
+                { $sort: { createdAt: -1 } },
             ],
         ]).exec();
         list = list.map((item) => {
@@ -143,10 +211,11 @@ const cancel = async (req, res, next) => {
     try {
         const { order_id } = req.body;
         const { user } = req;
-        const foundOrder = await Order.findById(order_id).exec();
+        const foundOrder = await Order.findOne({
+            _id: order_id,
+            customerId: user._id,
+        }).exec();
         if (!foundOrder) throw createError(400, "Can not find this order");
-        if (foundOrder.customerId !== user._id)
-            throw createError(400, "This order does not belong to you.");
         if (foundOrder.status !== 0)
             throw createError(400, "You can only cancel pending order.");
 
@@ -162,6 +231,12 @@ const cancel = async (req, res, next) => {
         });
         foundOrder.status = -1;
         const saveOrder = await foundOrder.save();
+        sendMailToSellerWhenCreate(
+            foundOrder.products,
+            products,
+            "Order Canceled!",
+            "Customer canceled an order :("
+        );
         return res.json({ order: saveOrder });
     } catch (err) {
         next(err);
