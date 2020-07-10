@@ -2,31 +2,39 @@ const createError = require("http-errors");
 const Product = require("../models/Product");
 const imgUpload = require("../helper/imgUpload");
 
+const creatImgLink = (link) => {
+    const imgTransformation = "/w_736,h_1074,c_pad,b_white";
+    return link.slice(0, 50) + imgTransformation + link.slice(50);
+};
+
 const updateProductImg = (product) => {
     product.photos.forEach((photo, index) => {
-        imgUpload(photo)
-            .then((result) => {
-                const setObject = {};
-                setObject["photos." + index] = result.url;
-                Product.updateOne(
-                    { _id: product._id },
-                    { $set: setObject }
-                ).exec();
-            })
-            .catch((err) => {
-                console.err(err);
-            });
+        if (photo && photo.includes("data:image"))
+            imgUpload(photo)
+                .then((result) => {
+                    const setObject = {};
+                    setObject["photos." + index] = creatImgLink(result.url);
+                    Product.updateOne(
+                        { _id: product._id },
+                        { $set: setObject }
+                    ).exec();
+                })
+                .catch((err) => {
+                    console.err(err);
+                });
     });
 };
 
 const add = async (req, res, next) => {
-    let { photos } = req.body;
+    const { photos, categories } = req.body;
     const { user } = req;
-    photos = photos.map((photo) => photo.src);
+    const formatedPhotos = photos.map((photo) => photo.src);
+    const formatedCategories = categories.map((cat) => cat.value);
     try {
         const product = await Product.create({
             ...req.body,
-            photos,
+            photos: formatedPhotos,
+            categories: formatedCategories,
             sellerId: user._id,
         });
         updateProductImg(product);
@@ -43,13 +51,13 @@ const getList = async (req, res, next) => {
         size = null,
         inStore = null,
         outOfStock = null,
+        categories,
     } = req.query;
     try {
         const query = {
             isRemoved: { $ne: true },
         };
 
-        const $elemMatch = {};
         // handle quantity
         const parseInStore = inStore && inStore.toLowerCase() === "true";
         const parseOutOfStock =
@@ -57,16 +65,42 @@ const getList = async (req, res, next) => {
 
         if (parseInStore !== parseOutOfStock) {
             //Cùng true || cùng false ko có ý nghĩa
-            if (parseInStore) $elemMatch["quantity"] = { $gt: 0 };
             //query instore
-            else $elemMatch["quantity"] = { $eq: 0 }; //query outofstock
+            if (parseInStore) {
+                query.properties = {
+                    $elemMatch: {
+                        quantity: { $gt: 0 },
+                    },
+                };
+            } else {
+                query.properties = {
+                    $not: {
+                        $elemMatch: {
+                            quantity: { $gt: 0 },
+                        },
+                    },
+                };
+            }
         }
         // handle size
-        size && ($elemMatch["size"] = size.toUpperCase());
-        // Create query
-        query.properties = {
-            $elemMatch,
-        };
+        if (size) {
+            if (query.properties) {
+                query.properties.$elemMatch
+                    ? (query.properties.$elemMatch["size"] = size.toUpperCase())
+                    : (query.properties["$elemMatch"] = {
+                          size: size.toUpperCase(),
+                      });
+            } else {
+                query.properties = {
+                    $elemMatch: {
+                        size: size.toUpperCase(),
+                    },
+                };
+            }
+        }
+        if (categories) {
+            query.categories = categories;
+        }
         const listProducts = await Product.find(query, {
             photos: { $slice: 1 },
         })
@@ -76,8 +110,8 @@ const getList = async (req, res, next) => {
         const totalProducts = await Product.countDocuments(query);
         return res.json({
             data: listProducts,
-            limit,
-            currentPage: page,
+            limit: Number(limit),
+            currentPage: Number(page),
             totalPages: Math.ceil(totalProducts / limit),
         });
     } catch (err) {
@@ -120,8 +154,16 @@ const remove = async (req, res, next) => {
 const edit = async (req, res, next) => {
     const { user } = req;
     const { product_id } = req.params;
-    const { photos, title, price, properties, description } = req.body;
+    const {
+        photos,
+        title,
+        price,
+        properties,
+        description,
+        categories,
+    } = req.body;
     const newPhotos = photos.map((photo) => photo.src);
+    const formatedCategories = categories.map((cat) => cat.value);
     try {
         const foundProduct = await Product.findOne({
             _id: product_id,
@@ -131,7 +173,7 @@ const edit = async (req, res, next) => {
         if (!foundProduct) {
             return next(createError(400, "Cannot find product by id"));
         }
-
+        foundProduct.categories = formatedCategories;
         foundProduct.photos = newPhotos;
         foundProduct.title = title;
         foundProduct.price = price;
@@ -139,6 +181,7 @@ const edit = async (req, res, next) => {
         foundProduct.description = description;
 
         const updated = await foundProduct.save();
+        updateProductImg(foundProduct);
         return res.json({ message: "Updated", product: updated });
     } catch (err) {
         next(err);

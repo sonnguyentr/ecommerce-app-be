@@ -120,6 +120,7 @@ const create = async (req, res, next) => {
 
 const getList = async (req, res, next) => {
     const { user } = req;
+    const { page = 1, limit = 20 } = req.query;
     const query = {};
     if (user.role === "customer") {
         query.customerId = user._id;
@@ -127,9 +128,13 @@ const getList = async (req, res, next) => {
 
     try {
         // const list = await Order.find(query).exec();
+        // .skip(Number((page - 1) * limit))
+        // .limit(Number(limit))
         let list = await Order.aggregate([
             [
                 { $match: query },
+                { $skip: Number((page - 1) * limit) },
+                { $limit: Number(limit) },
                 { $unwind: { path: "$products" } },
                 {
                     $lookup: {
@@ -174,6 +179,7 @@ const getList = async (req, res, next) => {
                 { $sort: { createdAt: -1 } },
             ],
         ]).exec();
+        const totalOrders = await Order.countDocuments(query);
         list = list.map((item) => {
             const newOrderArr = item.productsDetail.map((product) => {
                 const order = item.orderedProducts.find(
@@ -200,7 +206,12 @@ const getList = async (req, res, next) => {
             };
         });
 
-        return res.json({ data: list });
+        return res.json({
+            data: list,
+            limit: Number(limit),
+            currentPage: Number(page),
+            totalPages: Math.ceil(totalOrders / limit),
+        });
     } catch (err) {
         console.log(err);
         next(err);
